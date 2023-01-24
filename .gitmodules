@@ -1,0 +1,3 @@
+[submodule "entries"]
+	path = entries
+	url = git@github.com:comame/blog.comame.xyz-content.git
