@@ -3,7 +3,10 @@ package src
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 )
@@ -91,6 +94,28 @@ func HandleCms(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 
+	if reg := regexp.MustCompile(`^/api/entries/(\d{4}-\d{2}-\d{2})/([\w-_]+)\.(\w+)/html$`); reg.MatchString(r.URL.Path) {
+		match := reg.FindAllStringSubmatch(r.URL.Path, -1)
+		date := match[0][1]
+		entryName := match[0][2]
+		ext := match[0][3]
+
+		text, err := GetEntryHtml(date, entryName, ext)
+		if err != nil {
+			res, _ := json.Marshal(ErrorResponse{
+				Message: "Not Found",
+				Code:    NotFound.String(),
+			})
+			http.Error(w, string(res), http.StatusNotFound)
+			return true
+		}
+		res, _ := json.Marshal(Response{
+			Data: text,
+		})
+		fmt.Fprint(w, string(res))
+		return true
+	}
+
 	if reg := regexp.MustCompile(`^/api/entries/years/?$`); reg.MatchString(r.URL.Path) {
 		data, err := GetYears()
 		if err != nil {
@@ -144,6 +169,36 @@ func HandleCms(w http.ResponseWriter, r *http.Request) bool {
 			return true
 		}
 		fmt.Fprint(w, data)
+		return true
+	}
+
+	if reg := regexp.MustCompile(`^/static/([\w-_/]+)\.(\w+)$`); reg.MatchString(r.URL.Path) {
+		match := reg.FindAllStringSubmatch(r.URL.Path, -1)
+		pathWithoutExtension := match[0][1]
+		extension := match[0][2]
+
+		mime := mime.TypeByExtension("." + extension)
+		if mime != "" {
+			w.Header().Set("content-type", mime)
+		} else {
+			w.Header().Set("content-type", "application/octet-stream")
+		}
+
+		path := fmt.Sprintf("./entries/static/%s.%s", pathWithoutExtension, extension)
+
+		fp, err := os.Open(path)
+		if err != nil {
+			http.Error(w, "", http.StatusNotFound)
+			return true
+		}
+		defer fp.Close()
+
+		_, err = io.Copy(w, fp)
+		if err != nil {
+			http.Error(w, "", http.StatusInternalServerError)
+			return true
+		}
+
 		return true
 	}
 

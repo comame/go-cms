@@ -3,6 +3,8 @@ package src
 import (
 	"errors"
 	"sort"
+
+	"github.com/russross/blackfriday/v2"
 )
 
 var entriesCache []Entry
@@ -133,6 +135,24 @@ func GetEntry(dateStr string, entry string, ext string) (*Entry, string, error) 
 	}
 
 	return &target, text, err
+}
+
+func GetEntryHtml(dateStr string, entry string, ext string) (string, error) {
+	_, content, err := GetEntry(dateStr, entry, ext)
+	if err != nil {
+		return "", err
+	}
+
+	if ext == "html" {
+		return content, nil
+	}
+
+	if ext != "md" {
+		return "", errors.New("Unknown type")
+	}
+
+	html := blackfriday.Run([]byte(content))
+	return string(html), nil
 }
 
 func containsTag(tag string, entry Entry) bool {
